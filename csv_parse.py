@@ -1,3 +1,9 @@
+"""
+autor: NelsonEAX
+http://www.opencartlabs.ru/csv-price-pro-importexport-3/csvprice3-doc-csv/
+http://www.opencartlabs.ru/csv-price-pro-importexport-3/import-opencart-options/
+"""
+
 import csv
 from datetime import datetime
 
@@ -34,7 +40,7 @@ class Category:
         """Для hashable"""
         return hash(self.name)
 
-class Manufacturer(object):
+class Manufacturer:
     """Производи"""
 
     def __init__(self, obj):
@@ -60,12 +66,32 @@ class Option:
         """Constructor"""
         pass
 
-class Product:
-    """Продукция"""
+class OptionValue:
+    """ЗначенияОпций"""
 
     def __init__(self):
         """Constructor"""
         pass
+
+class Product:
+    """Продукция"""
+
+    def __init__(self, obj, imgs):
+        """Constructor"""
+        self.name = obj["_NAME_"]
+        self.model = obj["_MODEL_"]
+        self.sku = obj["_SKU_"]
+        self.price = obj["_PRICE_"]
+        self.quantity = obj["_QUANTITY_"]
+        self.description = obj["_DESCRIPTION_"]
+        self.name = obj["_WEIGHT_"]
+        self.name = obj["_LENGTH_"]
+        self.shipping = obj["_SHIPPING_"]
+        self.subtract = obj["_subtract_"]
+        self.html_h1 = obj["_HTML_H1_"]
+        self.html_title = obj["_HTML_TITLE_"]
+        self.special = obj["_SPECIAL_"]
+        self.images = imgs
 
 class ProductOption:
     """Опции продукции"""
@@ -97,6 +123,8 @@ class CSVImport:
         self.product = set()
         self.prodoption = set()
 
+        self.product_sku = None # Текущий товар, его id у поставщика
+
         with open(self.file, 'r', encoding='utf-8') as f_obj:
             self.csv_reader(f_obj)
 
@@ -106,41 +134,83 @@ class CSVImport:
         """
         reader = csv.DictReader(file_obj, delimiter=';')
         for csv_line in reader:
+            # Продукция
+            self.parse_product(csv_line)
             # Производители
-#            self.manufacturer.add(Manufacturer(csv_line))
+            self.parse_manufacturer(csv_line)
+            # Категории
+            self.parse_category(csv_line)
+            # Опции
+            self.parse_option(csv_line)
 
-            # Несколько категорий
-            self.categories_id.clear()
-            multiple_cat_list = csv_line["_CATEGORY_"].split("\n")
-            for single_cat_list in multiple_cat_list:
-                # Категории
-                parent = 0
-                cat_list = single_cat_list.split("|")
+            print(str(self.product_sku))
 
-                for category in cat_list:
-                    new_cat_obj = Category(name=category, date=self.date, id=len(self.category)+1, parent=parent)
-
-                    cat_obj = self.category.get(category)
-                    if cat_obj is None:
-                        self.category[category] = new_cat_obj
-                        parent = new_cat_obj.category_id
-                    else:
-                        parent = cat_obj.category_id
-
-                # Последний id в группе и есть id товара. Может быть несколько
-                self.categories_id.add(parent)
-
-            print(str(self.categories_id))
-
-
-
-
+        # Производители ###
         # for manuf in self.manufacturer:
         #     print(manuf.name)
 
-        for key in self.category:
-            cat = self.category[key]
-            print(str(cat.category_id) + '\t' + str(cat.parent_id) + '\t' + cat.name)
+        # Категории ###
+        # for key in self.category:
+        #     cat = self.category[key]
+        #     print(str(cat.category_id) + '\t' + str(cat.parent_id) + '\t' + cat.name)
+
+    def parse_product(self, csv_line):
+        """Парсинг продукции"""
+        # Изображения забиваем в словарь. Ключ позже станет сортировкой
+        imgs = dict() #
+        for img in csv_line["_IMAGE_"].split(','):
+            if img in (''):
+                continue
+            imgs[img] = len(imgs)
+
+        for img in csv_line["_IMAGES_"].split(','):
+            if img in (''):
+                continue
+            imgs[img] = len(imgs)
+
+        # Инициируем обьект
+        self.product.add(Product(csv_line, imgs))
+        self.product_sku = csv_line["_SKU_"]
+
+    def parse_manufacturer(self, csv_line):
+        """Парсинг производителей"""
+        self.manufacturer.add(Manufacturer(csv_line))
+
+    def parse_category(self, csv_line):
+        """Парсинг категорий"""
+        # Несколько категорий
+        self.categories_id.clear()
+        multiple_cat_list = csv_line["_CATEGORY_"].split("\n")
+        for single_cat_list in multiple_cat_list:
+            # Категории
+            parent = 0
+            cat_list = single_cat_list.split("|")
+
+            for category in cat_list:
+                new_cat_obj = Category(name=category, date=self.date, id=len(self.category) + 1, parent=parent)
+
+                cat_obj = self.category.get(category)
+                if cat_obj is None:
+                    self.category[category] = new_cat_obj
+                    parent = new_cat_obj.category_id
+                else:
+                    parent = cat_obj.category_id
+
+            # Последний id в группе и есть id товара. Может быть несколько
+            self.categories_id.add(parent)
+
+        # print(str(self.categories_id))###
+
+    def parse_option(self, csv_line):
+        """Парсинг производителей"""
+        multiple_opt_list = csv_line["_OPTIONS_"].split("\n")
+        for single_opt_list in multiple_opt_list:
+            # Опции
+            opt_list = single_opt_list.split("|")
+            
+
+
+
 
 
 
