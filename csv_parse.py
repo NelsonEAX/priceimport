@@ -62,9 +62,13 @@ class Manufacturer:
 class Option:
     """Опции"""
 
-    def __init__(self):
+    def __init__(self, id, type, desc, value ):
         """Constructor"""
-        pass
+        self.id = id
+        self.type = type #oc_option radio/checkbox/text/select/textarea/file/date/time/datetime
+        self.desc = desc #oc_option_description
+        self.value = value # oc_option_value_description
+
 
 class OptionValue:
     """ЗначенияОпций"""
@@ -119,7 +123,8 @@ class CSVImport:
         self.category = dict()
         self.categories_id = set()
         self.manufacturer = set()
-        self.option = set()
+        self.option = dict()
+        self.optionvalue = set()
         self.product = set()
         self.prodoption = set()
 
@@ -143,7 +148,7 @@ class CSVImport:
             # Опции
             self.parse_option(csv_line)
 
-            print(str(self.product_sku))
+            print(str(self.product_sku)) ###
 
         # Производители ###
         # for manuf in self.manufacturer:
@@ -206,8 +211,37 @@ class CSVImport:
         multiple_opt_list = csv_line["_OPTIONS_"].split("\n")
         for single_opt_list in multiple_opt_list:
             # Опции
+            if single_opt_list in (''):
+                continue
+
+
             opt_list = single_opt_list.split("|")
-            
+
+            opt_type = opt_list[0]
+            opt_descs = opt_list[1].split('/')
+            opt_values = opt_list[2].split('/')
+
+            opt_id = list() # id опций текущего товара
+
+            for id, opt_desc in enumerate(opt_descs):
+
+                if id > len(opt_values)-1:
+                    continue
+
+                new_opt_obj = Option(id=len(self.option) + 1, type=opt_type, desc=opt_desc, value=opt_values[id].split('-'))
+                opt_obj = self.option.get(opt_values[id]) # Ключ - строка вариантов опции 'S-M-L'
+
+                if opt_obj is None:
+                    self.option[opt_values[id]] = new_opt_obj
+                    opt_id.append(new_opt_obj.id)
+                else:
+                    opt_id.append(opt_obj.id)
+
+            print('opt_id ' + str(opt_id))
+
+
+
+
 
 
 
