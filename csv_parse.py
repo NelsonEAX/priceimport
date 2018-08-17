@@ -8,13 +8,26 @@ import csv
 from datetime import datetime
 
 csv_file = 'analyze/opencart_csv-price-pro-importexport-4.csv'
+sql_file = 'sql/result.sql'
 
 class Attribute:
     """Атрибуты и связи"""
 
-    def __init__(self):
+    def __init__(self, id, desc, attr, group_id, product_id):
         """Constructor"""
-        pass
+        self.id = id
+        self.desc = desc
+        self.attr = attr #oc_product_attribute.text
+        self.group_id = group_id
+        self.product_id = product_id
+
+class AttributeGroup:
+    """Группы атрибутов"""
+
+    def __init__(self, id, desc):
+        """Constructor"""
+        self.id = id
+        self.desc = desc
 
 class Category:
     """Категории"""
@@ -69,13 +82,21 @@ class Option:
         self.desc = desc #oc_option_description
         self.value = value # oc_option_value_description
 
-
 class OptionValue:
     """ЗначенияОпций"""
 
-    def __init__(self):
+    def __init__(self, product_id, option_id, obj):
         """Constructor"""
-        pass
+        self.product_id = product_id
+        self.option_id = option_id
+        self.quantity = obj[3]
+        self.subtract = obj[4]
+        self.price = obj[5]
+        self.price_prefix = obj[6]
+        self.points = obj[7]
+        self.points_prefix = obj[8]
+        self.weight = obj[9]
+        self.weight_prefix = obj[10]
 
 class Product:
     """Продукция"""
@@ -104,7 +125,6 @@ class ProductOption:
         """Constructor"""
         pass
 
-
 class CSVImport:
     """Класс генерации sql-файла ипорта прайса от Поставщика Счастья из csv"""
 
@@ -119,16 +139,17 @@ class CSVImport:
         # self.Product = Product()
         # self.ProductOption = ProductOption()
 
-        self.attribute = set()
+        self.attribute = list()
+        self.attr_group = dict()
         self.category = dict()
         self.categories_id = set()
         self.manufacturer = set()
         self.option = dict()
-        self.optionvalue = set()
+        self.optionvalue = list()
         self.product = set()
         self.prodoption = set()
 
-        self.product_sku = None # Текущий товар, его id у поставщика
+        self.product_id = None # Текущий товар, его id у поставщика
 
         with open(self.file, 'r', encoding='utf-8') as f_obj:
             self.csv_reader(f_obj)
@@ -147,8 +168,10 @@ class CSVImport:
             self.parse_category(csv_line)
             # Опции
             self.parse_option(csv_line)
+            # Атрибуты
+            self.parse_attribute(csv_line)
 
-            print(str(self.product_sku)) ###
+            # print(str(self.product_id)) ###
 
         # Производители ###
         # for manuf in self.manufacturer:
@@ -158,6 +181,14 @@ class CSVImport:
         # for key in self.category:
         #     cat = self.category[key]
         #     print(str(cat.category_id) + '\t' + str(cat.parent_id) + '\t' + cat.name)
+
+        # Производители ###
+        # for item in self.optionvalue:
+        #     print(str(item))
+
+        # Аттрибуты ###
+        # for item in self.attribute:
+        #     print(str(item.desc) + '\t' + str(item.attr))
 
     def parse_product(self, csv_line):
         """Парсинг продукции"""
@@ -175,7 +206,7 @@ class CSVImport:
 
         # Инициируем обьект
         self.product.add(Product(csv_line, imgs))
-        self.product_sku = csv_line["_SKU_"]
+        self.product_id = csv_line["_SKU_"]
 
     def parse_manufacturer(self, csv_line):
         """Парсинг производителей"""
@@ -214,14 +245,13 @@ class CSVImport:
             if single_opt_list in (''):
                 continue
 
-
             opt_list = single_opt_list.split("|")
 
             opt_type = opt_list[0]
             opt_descs = opt_list[1].split('/')
             opt_values = opt_list[2].split('/')
 
-            opt_id = list() # id опций текущего товара
+            opt_id_list = list() # лист id опций текущего товара
 
             for id, opt_desc in enumerate(opt_descs):
 
@@ -233,13 +263,39 @@ class CSVImport:
 
                 if opt_obj is None:
                     self.option[opt_values[id]] = new_opt_obj
-                    opt_id.append(new_opt_obj.id)
+                    opt_id=new_opt_obj.id
                 else:
-                    opt_id.append(opt_obj.id)
+                    opt_id=opt_obj.id
 
-            print('opt_id ' + str(opt_id))
+                opt_id_list.append(opt_id)
 
+            self.optionvalue.append(OptionValue(product_id=self.product_id, option_id=opt_id_list, obj=opt_list))
 
+            # print('opt_id ' + str(opt_id_list)) ###
+
+    def parse_attribute(self, csv_line):
+        """Парснинг атрибутов"""
+
+        multiple_attr_list = csv_line["_ATTRIBUTES_"].split("\n")
+        for single_attr_list in multiple_attr_list:
+            # Аттрибуты
+            if single_attr_list in (''):
+                continue
+
+            attr_list = single_attr_list.split("|")
+            group_desc = attr_list[0]
+
+            if group_desc in self.attr_group.keys():
+                group_id = self.attr_group[group_desc].id
+            else:
+                self.attr_group[group_desc] = AttributeGroup(id=len(self.attr_group)+1, desc=group_desc)
+                group_id = len(self.attr_group)+1
+
+            self.attribute.append(Attribute(id=len(self.attribute)+1,
+                                            desc=attr_list[1],
+                                            attr=attr_list[2],
+                                            group_id=group_id,
+                                            product_id=self.product_id))
 
 
 
@@ -251,6 +307,10 @@ class CSVImport:
 if __name__ == "__main__":
 
     csvimport = CSVImport(csv_file)
+    csvimport.sql_export(sql_file)
+
+
+
     csvimport.create_attribute_sql()
     csvimport.create_category_sql()
     csvimport.create_manufacturer_sql()
