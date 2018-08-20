@@ -6,6 +6,7 @@ http://www.opencartlabs.ru/csv-price-pro-importexport-3/import-opencart-options/
 
 import csv
 from datetime import datetime
+from string import Template
 
 csv_file = 'analyze/opencart_csv-price-pro-importexport-4.csv'
 sql_file = 'sql/result.sql'
@@ -128,16 +129,11 @@ class ProductOption:
 class CSVImport:
     """Класс генерации sql-файла ипорта прайса от Поставщика Счастья из csv"""
 
-    def __init__(self, file):
+    def __init__(self, csv_file, sql_file):
         """Constructor"""
-        self.file = file
+        self.csv_file = csv_file
+        self.sql_file = sql_file
         self.date = datetime.today().strftime("%Y-%m-%d %H:%M:%S")
-        # self.attribute = Attribute()
-        # self.Category = Category()
-        # self.Manufacturer = Manufacturer()
-        # self.Option = Option()
-        # self.Product = Product()
-        # self.ProductOption = ProductOption()
 
         self.attribute = list()
         self.attr_group = dict()
@@ -148,16 +144,16 @@ class CSVImport:
         self.optionvalue = list()
         self.product = set()
         self.prodoption = set()
-
         self.product_id = None # Текущий товар, его id у поставщика
 
-        with open(self.file, 'r', encoding='utf-8') as f_obj:
+        with open(self.csv_file, 'r', encoding='utf-8') as f_obj:
             self.csv_reader(f_obj)
 
     def csv_reader(self, file_obj):
         """
         Read a CSV file using csv.DictReader
         """
+        print('-------------sql_export-------------')
         reader = csv.DictReader(file_obj, delimiter=';')
         for csv_line in reader:
             # Продукция
@@ -286,10 +282,11 @@ class CSVImport:
             group_desc = attr_list[0]
 
             if group_desc in self.attr_group.keys():
-                group_id = self.attr_group[group_desc].id
+                group_id = self.attr_group[group_desc]#.id
             else:
-                self.attr_group[group_desc] = AttributeGroup(id=len(self.attr_group)+1, desc=group_desc)
-                group_id = len(self.attr_group)+1
+                group_id = len(self.attr_group) + 1
+                self.attr_group[group_desc] = group_id#AttributeGroup(id=len(self.attr_group)+1, desc=group_desc)
+
 
             self.attribute.append(Attribute(id=len(self.attribute)+1,
                                             desc=attr_list[1],
@@ -299,17 +296,86 @@ class CSVImport:
 
 
 
+    def sql_export(self):
+        """Export data to sql"""
+        print('-------------sql_export-------------')
+
+        self.oc_attribute = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_attribute`\n--\n\n' \
+            'TRUNCATE TABLE `oc_attribute`;\n\n' \
+            'INSERT INTO `oc_attribute` (`attribute_id`, `attribute_group_id`, `sort_order`) VALUES\n'
+
+        self.oc_attribute_description = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_attribute_description`\n--\n\n' \
+            'TRUNCATE TABLE `oc_attribute_description`;\n\n' \
+            'INSERT INTO `oc_attribute_description` (`attribute_id`, `language_id`, `name`) VALUES\n'
+
+        self.oc_attribute_group = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_attribute_group`\n--\n\n' \
+            'TRUNCATE TABLE `oc_attribute_group`;\n\n' \
+            'INSERT INTO `oc_attribute_group` (`attribute_group_id`, `sort_order`) VALUES\n'
+
+        self.oc_attribute_group_description = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_attribute_group_description`\n--\n\n' \
+            'TRUNCATE TABLE `oc_attribute_group_description`;\n\n' \
+            'INSERT INTO `oc_attribute_group_description` (`attribute_group_id`, `language_id`, `name`) VALUES\n'
+
+        self.temp_oc_attribute = Template('($attribute_id, $attribute_group_id, 0),\n')
+        self.temp_oc_attribute_description = Template('($attribute_id, 1, $name),\n')
+        self.temp_oc_attribute_group = Template('($attribute_group_id, 0),\n')
+        self.temp_oc_attribute_group_description = Template('($attribute_group_id, 1, $name),\n')
 
 
 
 
+
+
+        self.create_attribute_sql()
+
+
+
+
+    def create_attribute_sql(self):
+        """Экспорт sql по опциям"""
+        for attr in self.attribute:
+            # print(attr)
+
+            # self.id = id
+            # self.desc = desc
+            # self.attr = attr  # oc_product_attribute.text
+            # self.group_id = group_id
+            # self.product_id = product_id
+
+            self.oc_attribute += self.temp_oc_attribute.substitute({
+                'attribute_id': attr.id,
+                'attribute_group_id': attr.group_id
+            })
+
+            self.oc_attribute_description += self.temp_oc_attribute_description.substitute({
+                'attribute_id': attr.id,
+                'name': attr.desc
+            })
+
+
+        for group in self.attr_group:
+            self.oc_attribute_group += self.temp_oc_attribute_group.substitute({
+                'attribute_group_id': self.attr_group[group]
+            })
+
+            self.oc_attribute_group_description += self.temp_oc_attribute_group_description.substitute({
+                'attribute_group_id': self.attr_group[group],
+                'name': group
+            })
 
 if __name__ == "__main__":
 
-    csvimport = CSVImport(csv_file)
-    csvimport.sql_export(sql_file)
+    csvimport = CSVImport(csv_file, sql_file)
+    csvimport.sql_export()
 
-
+    print(csvimport.oc_attribute)
+    print(csvimport.oc_attribute_description)
+    print(csvimport.oc_attribute_group)
+    print(csvimport.oc_attribute_group_description)
 
     csvimport.create_attribute_sql()
     csvimport.create_category_sql()
