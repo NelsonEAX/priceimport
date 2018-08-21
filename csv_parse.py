@@ -14,13 +14,11 @@ sql_file = 'sql/result.sql'
 class Attribute:
     """Атрибуты и связи"""
 
-    def __init__(self, id, desc, attr, group_id, product_id):
+    def __init__(self, id, desc, group_id):
         """Constructor"""
         self.id = id
         self.desc = desc
-        self.attr = attr #oc_product_attribute.text
         self.group_id = group_id
-        self.product_id = product_id
 
 class AttributeGroup:
     """Группы атрибутов"""
@@ -29,6 +27,15 @@ class AttributeGroup:
         """Constructor"""
         self.id = id
         self.desc = desc
+
+class ProductAttr:
+    """Атрибуты продукции"""
+
+    def __init__(self, desc, attr_id, product_id):
+        """Constructor"""
+        self.desc = desc    # oc_product_attribute.text
+        self.attr_id = attr_id
+        self.product_id = product_id
 
 class Category:
     """Категории"""
@@ -119,13 +126,6 @@ class Product:
         self.special = obj["_SPECIAL_"]
         self.images = imgs
 
-class ProductOption:
-    """Опции продукции"""
-
-    def __init__(self):
-        """Constructor"""
-        pass
-
 class CSVImport:
     """Класс генерации sql-файла ипорта прайса от Поставщика Счастья из csv"""
 
@@ -135,7 +135,7 @@ class CSVImport:
         self.sql_file = sql_file
         self.date = datetime.today().strftime("%Y-%m-%d %H:%M:%S")
 
-        self.attribute = list()
+        self.attribute = dict()
         self.attr_group = dict()
         self.category = dict()
         self.categories_id = set()
@@ -144,6 +144,7 @@ class CSVImport:
         self.optionvalue = list()
         self.product = set()
         self.prodoption = set()
+        self.prodattr = set()
         self.product_id = None # Текущий товар, его id у поставщика
 
         with open(self.csv_file, 'r', encoding='utf-8') as f_obj:
@@ -153,7 +154,7 @@ class CSVImport:
         """
         Read a CSV file using csv.DictReader
         """
-        print('-------------sql_export-------------')
+        print('-------------csv_reader-------------' + datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
         reader = csv.DictReader(file_obj, delimiter=';')
         for csv_line in reader:
             # Продукция
@@ -280,6 +281,7 @@ class CSVImport:
 
             attr_list = single_attr_list.split("|")
             group_desc = attr_list[0]
+            attr_desc = attr_list[1]
 
             if group_desc in self.attr_group.keys():
                 group_id = self.attr_group[group_desc]#.id
@@ -287,19 +289,24 @@ class CSVImport:
                 group_id = len(self.attr_group) + 1
                 self.attr_group[group_desc] = group_id#AttributeGroup(id=len(self.attr_group)+1, desc=group_desc)
 
+            if attr_desc in self.attribute.keys():
+                attr_id = self.attribute[attr_desc]
+            else:
+                attr_id = len(self.attribute) + 1
+                self.attribute[attr_desc] = Attribute(id=attr_id,
+                                                      desc=attr_desc,
+                                                      group_id=group_id)
 
-            self.attribute.append(Attribute(id=len(self.attribute)+1,
-                                            desc=attr_list[1],
-                                            attr=attr_list[2],
-                                            group_id=group_id,
-                                            product_id=self.product_id))
-
+            self.prodattr.add(ProductAttr(desc=attr_list[2],
+                                         attr_id=attr_id,
+                                         product_id=self.product_id))
 
 
     def sql_export(self):
         """Export data to sql"""
-        print('-------------sql_export-------------')
+        print('-------------sql_export-------------' + datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
 
+        #attribute---------------------------------------------------------
         self.oc_attribute = '' \
             '\n\n--\n-- Дамп данных таблицы `oc_attribute`\n--\n\n' \
             'TRUNCATE TABLE `oc_attribute`;\n\n' \
@@ -327,6 +334,56 @@ class CSVImport:
 
 
 
+        self.oc_category = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_category`\n--\n\n' \
+            'TRUNCATE TABLE `oc_category`;\n\n' \
+            'INSERT INTO `oc_category` (`category_id`, `image`, `parent_id`, `top`, `column`, `sort_order`, ' \
+                           '`status`, `date_added`, `date_modified`) VALUES\n'
+
+        self.oc_category_description = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_category_description`\n--\n\n' \
+            'TRUNCATE TABLE `oc_category_description`;\n\n' \
+            'INSERT INTO `oc_category_description` (`category_id`, `language_id`, `name`, `description`, ' \
+                                       '`meta_title`, `meta_description`, `meta_keyword`) VALUES\n'
+
+        self.oc_category_path = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_category_path`\n--\n\n' \
+            'TRUNCATE TABLE `oc_category_path`;\n\n' \
+            'INSERT INTO `oc_category_path` (`category_id`, `path_id`, `level`) VALUES\n'
+
+        self.oc_category_to_layout = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_category_to_layout`\n--\n\n' \
+            'TRUNCATE TABLE `oc_category_to_layout`;\n\n' \
+            'INSERT INTO `oc_category_to_layout` (`category_id`, `store_id`, `layout_id`) VALUES\n'
+
+        self.oc_category_to_store = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_category_to_store`\n--\n\n' \
+            'TRUNCATE TABLE `oc_category_to_store`;\n\n' \
+            'INSERT INTO `oc_category_to_store` (`category_id`, `store_id`) VALUES\n'
+
+
+        self.temp_oc_category = Template('($category_id, '', $parent_id, 1, 1, 3, 1, $date_added, $date_modified),\n')
+        self.temp_oc_category_description = Template('($category_id, 1, $name, $description, \'\', \'\', \'\'),\n')
+        self.temp_oc_category_path = Template('($category_id, $path_id, $level),\n')
+        self.temp_oc_category_to_layout = Template('($category_id, 0, 0),\n')
+        self.temp_oc_category_to_store = Template('($category_id, 0),\n')
+
+
+
+        self.oc_manufacturer = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_manufacturer`\n--\n\n' \
+            'TRUNCATE TABLE `oc_manufacturer`;\n\n' \
+            'INSERT INTO `oc_manufacturer` (`manufacturer_id`, `name`, `image`, `sort_order`) VALUES\n'
+
+        self.oc_manufacturer_to_store = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_manufacturer_to_store`\n--\n\n' \
+            'TRUNCATE TABLE `oc_manufacturer_to_store`;\n\n' \
+            'INSERT INTO `oc_manufacturer_to_store` (`manufacturer_id`, `store_id`) VALUES\n'
+
+        self.temp_oc_manufacturer = Template('($manufacturer_id, $name, \'\', 0),\n')
+        self.temp_oc_manufacturer_to_store = Template('($manufacturer_id, 0),\n')
+
+
 
 
 
@@ -337,7 +394,8 @@ class CSVImport:
 
     def create_attribute_sql(self):
         """Экспорт sql по опциям"""
-        for attr in self.attribute:
+        for desc in self.attribute:
+            attr = self.attribute[desc]
             # print(attr)
 
             # self.id = id
