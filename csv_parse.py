@@ -305,7 +305,12 @@ class CSVImport:
     def sql_export(self):
         """Export data to sql"""
         print('-------------sql_export-------------' + datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
+        self.init_sql_template()
+        self.create_attribute_sql()
 
+
+    def init_sql_template(self):
+        """Инициализация шаблонов импорта в БД"""
         #attribute---------------------------------------------------------
         self.oc_attribute = '' \
             '\n\n--\n-- Дамп данных таблицы `oc_attribute`\n--\n\n' \
@@ -332,8 +337,7 @@ class CSVImport:
         self.temp_oc_attribute_group = Template('($attribute_group_id, 0),\n')
         self.temp_oc_attribute_group_description = Template('($attribute_group_id, 1, $name),\n')
 
-
-
+        # category---------------------------------------------------------
         self.oc_category = '' \
             '\n\n--\n-- Дамп данных таблицы `oc_category`\n--\n\n' \
             'TRUNCATE TABLE `oc_category`;\n\n' \
@@ -368,8 +372,7 @@ class CSVImport:
         self.temp_oc_category_to_layout = Template('($category_id, 0, 0),\n')
         self.temp_oc_category_to_store = Template('($category_id, 0),\n')
 
-
-
+        # manufacturer---------------------------------------------------------
         self.oc_manufacturer = '' \
             '\n\n--\n-- Дамп данных таблицы `oc_manufacturer`\n--\n\n' \
             'TRUNCATE TABLE `oc_manufacturer`;\n\n' \
@@ -383,26 +386,104 @@ class CSVImport:
         self.temp_oc_manufacturer = Template('($manufacturer_id, $name, \'\', 0),\n')
         self.temp_oc_manufacturer_to_store = Template('($manufacturer_id, 0),\n')
 
+        # option---------------------------------------------------------
+        self.oc_option = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_option`\n--\n\n' \
+           'TRUNCATE TABLE `oc_option`;\n\n' \
+           'INSERT INTO `oc_option` (`option_id`, `type`, `sort_order`) VALUES\n'
 
+        self.oc_option_description = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_option_description`\n--\n\n' \
+           'TRUNCATE TABLE `oc_option_description`;\n\n' \
+           'INSERT INTO `oc_option_description` (`option_id`, `language_id`, `name`) VALUES\n'
 
+        self.oc_option_value = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_option_value`\n--\n\n' \
+           'TRUNCATE TABLE `oc_option_value`;\n\n' \
+           'INSERT INTO `oc_option_value` (`option_value_id`, `option_id`, `image`, `sort_order`) VALUES\n'
 
+        self.oc_option_value_description = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_option_value_description`\n--\n\n' \
+           'TRUNCATE TABLE `oc_option_value_description`;\n\n' \
+           'INSERT INTO `oc_option_value_description` (`option_value_id`, `language_id`, `option_id`, `name`) VALUES\n'
 
-        self.create_attribute_sql()
+        self.temp_oc_option = Template('($option_id, $type, 0),\n')
+        self.temp_oc_option_description = Template('($option_id, 1, $name),\n')
+        self.temp_oc_option_value = Template('($option_value_id, $option_id, \'\', 0),\n')
+        self.temp_oc_option_value_description = Template('($option_value_id, 1, $option_id, $name),\n')
 
+        # product---------------------------------------------------------
+        self.oc_product = '' \
+             '\n\n--\n-- Дамп данных таблицы `oc_product`\n--\n\n' \
+             'TRUNCATE TABLE `oc_product`;\n\n' \
+             'INSERT INTO `oc_product` (`product_id`, `model`, `sku`, `upc`, `ean`, `jan`, `isbn`, ' \
+                          '`mpn`, `location`, `quantity`, `stock_status_id`, `image`, `manufacturer_id`, ' \
+                          '`shipping`, `price`, `points`, `tax_class_id`, `date_available`, `weight`, ' \
+                          '`weight_class_id`, `length`, `width`, `height`, `length_class_id`, `subtract`, ' \
+                          '`minimum`, `sort_order`, `status`, `viewed`, `date_added`, `date_modified`) VALUES\n'
 
+        self.temp_oc_product = Template('($product_id, $model, $sku, \'\', \'\', \'\', \'\', \'\', $location, '
+                                        '$quantity, $stock_status_id, $image, $manufacturer_id, $shipping, $price, '
+                                        '$points, $tax_class_id, $date_available, $weight, $weight_class_id, '
+                                        '$length, $width, $height, $length_class_id, $subtract, $minimum, '
+                                        '$sort_order, $status, $viewed, $date_added, $date_modified),\n')
 
+        self.oc_product_attribute = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_product_attribute`\n--\n\n' \
+           'TRUNCATE TABLE `oc_product_attribute`;\n\n' \
+           'INSERT INTO `oc_product_attribute` (`product_id`, `attribute_id`, `language_id`, `text`) VALUES\n'
+
+        self.oc_product_description = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_product_description`\n--\n\n' \
+           'TRUNCATE TABLE `oc_product_description`;\n\n' \
+           'INSERT INTO `oc_product_description` (`product_id`, `language_id`, `name`, `description`, `tag`,' \
+                                      ' `meta_title`, `meta_description`, `meta_keyword`) VALUES\n'
+
+        self.oc_product_option = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_product_attribute`\n--\n\n' \
+           'TRUNCATE TABLE `oc_product_attribute`;\n\n' \
+           'INSERT INTO `oc_product_attribute` (`product_option_id`, `product_id`, `option_id`, `value`, `required`) VALUES\n'
+
+        self.oc_product_option_value = '' \
+           '\n\n--\n-- Дамп данных таблицы `oc_product_option_value`\n--\n\n' \
+           'TRUNCATE TABLE `oc_product_option_value`;\n\n' \
+           'INSERT INTO `oc_product_option_value` (`product_option_value_id`, `product_option_id`, `product_id`, ' \
+                                       '`option_id`, `option_value_id`, `quantity`, `subtract`, `price`, ' \
+                                       '`price_prefix`, `points`, `points_prefix`, `weight`, `weight_prefix`) VALUES\n'
+
+        self.oc_product_to_layout = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_product_to_layout`\n--\n\n' \
+            'TRUNCATE TABLE `oc_product_to_layout`;\n\n' \
+            'INSERT INTO `oc_product_to_layout` (`product_id`, `store_id`, `layout_id`) VALUES\n'
+
+        self.oc_product_to_store = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_product_to_store`\n--\n\n' \
+            'TRUNCATE TABLE `oc_product_to_store`;\n\n' \
+            'INSERT INTO `oc_product_to_store` (`product_id`, `store_id`) VALUES\n'
+
+        self.temp_oc_product_attribute = Template('($product_id, $attribute_id, 1, $text),\n')
+        self.temp_oc_product_description = Template('($product_id, 1, $name, $description, $tag, $meta_title, '
+                                                    '$meta_description, $meta_keyword),\n')
+        self.temp_oc_product_option = Template('($product_option_id, $product_id, $option_id, $value, 1),\n')
+        self.temp_oc_product_option_value = Template('($product_option_value_id, $product_option_id, $product_id, '
+                                                     '$option_id, $option_value_id, $quantity, $subtract, '
+                                                     '$price, $price_prefix, $points, $points_prefix, '
+                                                     '$weight, $weight_prefix`),\n')
+        self.temp_oc_product_to_layout = Template('($product_id, 0, 0),\n') #???
+        self.temp_oc_product_to_store = Template('($product_id, 0`),\n')
+
+        # url_alias---------------------------------------------------------
+        self.oc_url_alias = '' \
+            '\n\n--\n-- Дамп данных таблицы `oc_url_alias`\n--\n\n' \
+            'TRUNCATE TABLE `oc_url_alias`;\n\n' \
+            'INSERT INTO `oc_url_alias` (`url_alias_id`, `query`, `keyword`) VALUES\n'
+
+        self.temp_oc_url_alias = Template('($url_alias_id, $query, $keyword),\n') #???
 
     def create_attribute_sql(self):
         """Экспорт sql по опциям"""
         for desc in self.attribute:
             attr = self.attribute[desc]
-            # print(attr)
-
-            # self.id = id
-            # self.desc = desc
-            # self.attr = attr  # oc_product_attribute.text
-            # self.group_id = group_id
-            # self.product_id = product_id
 
             self.oc_attribute += self.temp_oc_attribute.substitute({
                 'attribute_id': attr.id,
@@ -413,7 +494,6 @@ class CSVImport:
                 'attribute_id': attr.id,
                 'name': attr.desc
             })
-
 
         for group in self.attr_group:
             self.oc_attribute_group += self.temp_oc_attribute_group.substitute({
