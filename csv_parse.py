@@ -40,12 +40,13 @@ class ProductAttr:
 class Category:
     """Категории"""
 
-    def __init__(self, name, date, id, parent = 0):
+    def __init__(self, name, date, id, parent = 0, path={}):
         """Constructor"""
         self.category_id = id
         self.name = name # obj["_CATEGORY_"]
         self.image = None
         self.parent_id = parent
+        self.path = path
         self.top = 1 # По умолчанию считаем родительской категорией
         self.column = 1 # ?
         self.status = 1 # По умолчанию включено
@@ -64,9 +65,9 @@ class Category:
 class Manufacturer:
     """Производи"""
 
-    def __init__(self, obj):
+    def __init__(self, id, obj):
         """Constructor"""
-        self.manufacturer_id = None
+        self.manufacturer_id = id
         self.name = obj["_MANUFACTURER_"]
         self.image = None
         self.sort_order = 0 #По умолчанию без сортировки
@@ -207,7 +208,7 @@ class CSVImport:
 
     def parse_manufacturer(self, csv_line):
         """Парсинг производителей"""
-        self.manufacturer.add(Manufacturer(csv_line))
+        self.manufacturer.add(Manufacturer(id=len(self.manufacturer)+1, obj=csv_line))
 
     def parse_category(self, csv_line):
         """Парсинг категорий"""
@@ -217,10 +218,12 @@ class CSVImport:
         for single_cat_list in multiple_cat_list:
             # Категории
             parent = 0
+            path = {}
             cat_list = single_cat_list.split("|")
 
             for category in cat_list:
-                new_cat_obj = Category(name=category, date=self.date, id=len(self.category) + 1, parent=parent)
+                path[len(path)] = parent
+                new_cat_obj = Category(name=category, date=self.date, id=len(self.category) + 1, parent=parent, path=path)
 
                 cat_obj = self.category.get(category)
                 if cat_obj is None:
@@ -305,8 +308,13 @@ class CSVImport:
     def sql_export(self):
         """Export data to sql"""
         print('-------------sql_export-------------' + datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
+
         self.init_sql_template()
         self.create_attribute_sql()
+        self.create_category_sql()
+        self.create_manufacturer_sql()
+        self.create_option_sql()
+        self.create_product_sql()
 
 
     def init_sql_template(self):
@@ -366,7 +374,7 @@ class CSVImport:
             'INSERT INTO `oc_category_to_store` (`category_id`, `store_id`) VALUES\n'
 
 
-        self.temp_oc_category = Template('($category_id, '', $parent_id, 1, 1, 3, 1, $date_added, $date_modified),\n')
+        self.temp_oc_category = Template('($category_id, \'\', $parent_id, 1, 1, 3, 1, $date_added, $date_modified),\n')
         self.temp_oc_category_description = Template('($category_id, 1, $name, $description, \'\', \'\', \'\'),\n')
         self.temp_oc_category_path = Template('($category_id, $path_id, $level),\n')
         self.temp_oc_category_to_layout = Template('($category_id, 0, 0),\n')
@@ -481,7 +489,7 @@ class CSVImport:
         self.temp_oc_url_alias = Template('($url_alias_id, $query, $keyword),\n') #???
 
     def create_attribute_sql(self):
-        """Экспорт sql по опциям"""
+        """Экспорт sql по атрибутам"""
         for desc in self.attribute:
             attr = self.attribute[desc]
 
@@ -505,22 +513,81 @@ class CSVImport:
                 'name': group
             })
 
+    def create_category_sql(self):
+        """Экспорт sql по категориям"""
+        for key in self.category:
+            item = self.category[key]
+
+            self.oc_category += self.temp_oc_category.substitute({
+                'category_id': item.category_id,
+                'parent_id': item.parent_id,
+                'date_added': item.date_added,
+                'date_modified': item.date_modified
+            })
+
+            self.oc_category_description += self.temp_oc_category_description.substitute({
+                'category_id': item.category_id,
+                'name': item.name,
+                'description': ''
+            })
+
+            for level in item.path:
+                self.oc_category_path += self.temp_oc_category_path.substitute({
+                    'category_id': item.category_id,
+                    'path_id': item.path[level],
+                    'level': level
+                })
+
+            self.oc_category_to_layout += self.temp_oc_category_to_layout.substitute({
+                'category_id': item.category_id
+            })
+
+            self.oc_category_to_store += self.temp_oc_category_to_store.substitute({
+                'category_id': item.category_id
+            })
+
+
+    def create_manufacturer_sql(self):
+        """Экспорт sql по производители"""
+        def get_id(item):
+            """Для сортировки сет по id"""
+            return item.manufacturer_id
+
+        for item in sorted(self.manufacturer, key=get_id):
+            self.oc_manufacturer += self.temp_oc_manufacturer.substitute({
+                'manufacturer_id': item.manufacturer_id,
+                'name': item.name
+            })
+            self.oc_manufacturer_to_store += self.temp_oc_manufacturer_to_store.substitute({
+                'manufacturer_id': item.manufacturer_id
+            })
+
+    def create_option_sql(self):
+        """Экспорт sql по опции"""
+        pass
+
+    def create_product_sql(self):
+        """Экспорт sql по продукция"""
+        pass
+
 if __name__ == "__main__":
 
     csvimport = CSVImport(csv_file, sql_file)
     csvimport.sql_export()
 
-    print(csvimport.oc_attribute)
-    print(csvimport.oc_attribute_description)
-    print(csvimport.oc_attribute_group)
-    print(csvimport.oc_attribute_group_description)
+    # print(csvimport.oc_attribute)
+    # print(csvimport.oc_attribute_description)
+    # print(csvimport.oc_attribute_group)
+    # print(csvimport.oc_attribute_group_description)
+    print(csvimport.oc_category)
+    print(csvimport.oc_category_description)
+    print(csvimport.oc_category_path)
+    print(csvimport.oc_category_to_layout)
+    print(csvimport.oc_category_to_store)
+    # print(csvimport.oc_manufacturer)
+    # print(csvimport.oc_manufacturer_to_store)
 
-    csvimport.create_attribute_sql()
-    csvimport.create_category_sql()
-    csvimport.create_manufacturer_sql()
-    csvimport.create_option_sql()
-    csvimport.create_product_sql()
-    csvimport.create_product_option_sql()
+
 
 
 
