@@ -84,14 +84,22 @@ class Manufacturer:
 class Option:
     """Опции"""
 
-    def __init__(self, id, type, desc, value ):
+    def __init__(self, id, type, desc ):
         """Constructor"""
         self.id = id
         self.type = type #oc_option radio/checkbox/text/select/textarea/file/date/time/datetime
         self.desc = desc #oc_option_description
-        self.value = value # oc_option_value_description
 
 class OptionValue:
+    """ВариантыОпций"""
+
+    def __init__(self, id, option_id, desc):
+        """Constructor"""
+        self.id = id
+        self.option_id = option_id
+        self.desc = desc
+
+class ProductOption:
     """ЗначенияОпций"""
 
     def __init__(self, product_id, option_id, obj):
@@ -144,7 +152,7 @@ class CSVImport:
         self.option = dict()
         self.optionvalue = list()
         self.product = set()
-        self.prodoption = set()
+        self.prodoption = list()
         self.prodattr = set()
         self.product_id = None # Текущий товар, его id у поставщика
 
@@ -258,19 +266,24 @@ class CSVImport:
                 if id > len(opt_values)-1:
                     continue
 
-                new_opt_obj = Option(id=len(self.option) + 1, type=opt_type, desc=opt_desc, value=opt_values[id].split('-'))
+                new_opt_obj = Option(id=len(self.option) + 1, type=opt_type, desc=opt_desc)
                 opt_obj = self.option.get(opt_values[id]) # Ключ - строка вариантов опции 'S-M-L'
 
                 if opt_obj is None:
                     self.option[opt_values[id]] = new_opt_obj
                     opt_id=new_opt_obj.id
+                    # Варианты опций
+                    values = opt_values[id].split('-')
+                    for value in values:
+                        self.optionvalue.append(OptionValue(id=len(self.optionvalue) + 1, option_id=opt_id, desc=value))
                 else:
                     opt_id=opt_obj.id
 
+                # Связи с продукцией
                 opt_id_list.append(opt_id)
 
-            self.optionvalue.append(OptionValue(product_id=self.product_id, option_id=opt_id_list, obj=opt_list))
 
+            self.prodoption.append(ProductOption(product_id=self.product_id, option_id=opt_id_list, obj=opt_list))
             # print('opt_id ' + str(opt_id_list)) ###
 
     def parse_attribute(self, csv_line):
@@ -310,10 +323,10 @@ class CSVImport:
         print('-------------sql_export-------------' + datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
 
         self.init_sql_template()
-        self.create_attribute_sql()
-        self.create_category_sql()
-        self.create_manufacturer_sql()
-        self.create_option_sql()
+        # self.create_attribute_sql()
+        # self.create_category_sql()
+        # self.create_manufacturer_sql()
+        # self.create_option_sql()
         self.create_product_sql()
 
 
@@ -415,7 +428,7 @@ class CSVImport:
            'TRUNCATE TABLE `oc_option_value_description`;\n\n' \
            'INSERT INTO `oc_option_value_description` (`option_value_id`, `language_id`, `option_id`, `name`) VALUES\n'
 
-        self.temp_oc_option = Template('($option_id, $type, 0),\n')
+        self.temp_oc_option = Template('($option_id, $type, $sort_order),\n')
         self.temp_oc_option_description = Template('($option_id, 1, $name),\n')
         self.temp_oc_option_value = Template('($option_value_id, $option_id, \'\', 0),\n')
         self.temp_oc_option_value_description = Template('($option_value_id, 1, $option_id, $name),\n')
@@ -546,7 +559,6 @@ class CSVImport:
                 'category_id': item.category_id
             })
 
-
     def create_manufacturer_sql(self):
         """Экспорт sql по производители"""
         def get_id(item):
@@ -564,11 +576,101 @@ class CSVImport:
 
     def create_option_sql(self):
         """Экспорт sql по опции"""
-        pass
+        for key in self.option:
+            item = self.option[key]
+            self.oc_option += self.temp_oc_option.substitute({
+                'option_id': item.id,
+                'type': item.type,
+                'sort_order': item.id
+            })
+            self.oc_option_description += self.temp_oc_option_description.substitute({
+                'option_id': item.id,
+                'name': item.desc
+            })
+
+        def get_id(item):
+            """Для сортировки листа по id"""
+            return item.id
+
+        for item in sorted(self.optionvalue, key=get_id):
+            self.oc_option_value += self.temp_oc_option_value.substitute({
+                'option_value_id': item.id,
+                'option_id': item.option_id
+            })
+            self.oc_option_value_description += self.temp_oc_option_value_description.substitute({
+                'option_value_id': item.id,
+                'option_id': item.option_id,
+                'name': item.desc
+            })
 
     def create_product_sql(self):
         """Экспорт sql по продукция"""
-        pass
+        for item in sorted(self.optionvalue):
+            self.oc_product += self.temp_oc_product.substitute({
+                'product_id': item.id,
+                'model': item.option_id,
+                'sku': item.option_id,
+                'location': item.option_id,
+                'points': item.product_id,
+                'tax_class_id': item.product_id,
+                'date_available': item.product_id,
+                'weight': item.product_id,
+                'weight_class_id': item.product_id,
+                'length': item.product_id,
+                'width': item.product_id,
+                'height': item.product_id,
+                'length_class_id': item.product_id,
+                'subtract': item.product_id,
+                'minimum': item.product_id,
+                'sort_order': item.product_id,
+                'status': item.product_id,
+                'viewed': item.product_id,
+                'date_added': item.product_id,
+                'date_modified': item.product_id
+            })
+            self.oc_product_attribute += self.temp_oc_product_attribute.substitute({
+                'product_id': item.id,
+                'attribute_id': item.option_id,
+                'text': item.option_id
+            })
+            self.oc_product_description += self.temp_oc_product_description.substitute({
+                'product_id': item.id,
+                'name': item.option_id,
+                'description': item.option_id,
+                'tag': item.option_id,
+                'meta_title': item.option_id,
+                'meta_description': item.option_id,
+                'meta_keyword': item.option_id
+            })
+            self.oc_product_option += self.temp_oc_product_option.substitute({
+                'product_option_id': item.id,
+                'product_id': item.option_id,
+                'option_id': item.option_id,
+                'value': item.option_id
+            })
+            self.oc_product_option_value += self.temp_oc_product_option_value.substitute({
+                'product_option_value_id': item.product_id,
+                'product_option_id': item.product_id,
+                'product_id': item.product_id,
+                'option_id': item.product_id,
+                'option_value_id': item.product_id,
+                'quantity': item.product_id,
+                'subtract': item.product_id,
+                'price': item.product_id,
+                'price_prefix': item.product_id,
+                'points': item.product_id,
+                'points_prefix': item.product_id,
+                'weight': item.product_id,
+                'weight_prefix': item.product_id
+            })
+            self.oc_product_to_layout += self.temp_oc_product_to_layout.substitute({
+                'product_id': item.product_id
+            })
+            self.oc_product_to_store += self.temp_oc_product_to_store.substitute({
+                'product_id': item.product_id
+            })
+
+
 
 if __name__ == "__main__":
 
@@ -579,13 +681,27 @@ if __name__ == "__main__":
     # print(csvimport.oc_attribute_description)
     # print(csvimport.oc_attribute_group)
     # print(csvimport.oc_attribute_group_description)
-    print(csvimport.oc_category)
-    print(csvimport.oc_category_description)
-    print(csvimport.oc_category_path)
-    print(csvimport.oc_category_to_layout)
-    print(csvimport.oc_category_to_store)
+    # print(csvimport.oc_category)
+    # print(csvimport.oc_category_description)
+    # print(csvimport.oc_category_path)
+    # print(csvimport.oc_category_to_layout)
+    # print(csvimport.oc_category_to_store)
     # print(csvimport.oc_manufacturer)
     # print(csvimport.oc_manufacturer_to_store)
+    # print(csvimport.oc_option)
+    # print(csvimport.oc_option_description)
+    # print(csvimport.oc_option_value)
+    # print(csvimport.oc_option_value_description)
+
+    print(csvimport.oc_product)
+    print(csvimport.oc_product_attribute)
+    print(csvimport.oc_product_description)
+    print(csvimport.oc_product_option)
+    print(csvimport.oc_product_option_value)
+    print(csvimport.oc_product_to_layout)
+    print(csvimport.oc_product_to_store)
+
+
 
 
 
