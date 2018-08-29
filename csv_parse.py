@@ -5,6 +5,7 @@ http://www.opencartlabs.ru/csv-price-pro-importexport-3/import-opencart-options/
 """
 
 import csv
+import copy
 from datetime import datetime
 from string import Template
 
@@ -426,16 +427,19 @@ class CSVImport:
             cat_list = single_cat_list.split("|")
 
             for category in cat_list:
-                path[len(path)] = parent# (len(self.category) + 1) if parent == 0 else parent
-                new_cat_obj = Category(name=category, date=self.date, id=len(self.category) + 1, parent=parent, path=path)
-
                 cat_obj = self.category.get(category)
                 if cat_obj is None:
+                    category_id = len(self.category) + 1
+                    path[len(path)] = category_id
+
+                    new_cat_obj = Category(name=category, date=self.date, id=category_id, parent=parent,
+                                           path=copy.copy(path))
+
                     self.category[category] = new_cat_obj
-                    parent = new_cat_obj.category_id
-                    path[len(path)] = parent
+                    parent = category_id
                 else:
                     parent = cat_obj.category_id
+                    path = copy.copy(cat_obj.path)
 
             # Последний id в группе и есть id товара. Может быть несколько
             self.categories_id.add(parent)
@@ -544,11 +548,11 @@ class CSVImport:
         """Export data to sql"""
         print('-------------sql_export-------------' + datetime.today().strftime("%Y-%m-%d %H:%M:%S"))
 
-        # self.create_attribute_sql()
+        self.create_attribute_sql()
         self.create_category_sql()
-        # self.create_manufacturer_sql()
-        # self.create_option_sql()
-        # self.create_product_sql()
+        self.create_manufacturer_sql()
+        self.create_option_sql()
+        self.create_product_sql()
 
         self.sql_export_to_file()
 
@@ -657,67 +661,67 @@ class CSVImport:
 
     def create_product_sql(self):
         """Экспорт sql по продукция"""
-        # for item in self.product:
-        #     self.sql.oc_product += self.temp.oc_product.substitute({
-        #         'product_id': item.sku,
-        #         'model': item.model,
-        #         'sku': item.sku,
-        #         'location': '',
-        #         'quantity': item.quantity,
-        #         'stock_status_id': 7, # oc_stock_status 7, 'В наличии'
-        #         'image': item.image,
-        #         'manufacturer_id': item.manufacturer_id,
-        #         'shipping': item.shipping,
-        #         'price': item.price,
-        #         'points': 0,
-        #         'tax_class_id': 9, # oc_tax_class 9, 'Налоги', 'Облагаемые налогом'
-        #         'date_available': self.date,
-        #         'weight': '0.00000000' if item.weight == '' else item.weight,
-        #         'weight_class_id': 2,# oc_weight_class_description (2, 1, 'Грамм', 'г');
-        #         'length': '0.00000000' if item.length == '' else item.length,
-        #         'width': '0.00000000',
-        #         'height': '0.00000000',
-        #         'length_class_id': 2, # oc_length_class_description (2, 1, 'Миллиметр', 'мм');
-        #         'subtract': item.subtract,
-        #         'minimum': 1,
-        #         'sort_order': 1,
-        #         'status': 1,
-        #         'viewed': 0,
-        #         'date_added': self.date,
-        #         'date_modified': self.date
-        #     })
-        #
-        #     self.sql.oc_product_description += self.temp.oc_product_description.substitute({
-        #         'product_id': item.sku,
-        #         'name': item.name,
-        #         'description': item.description,
-        #         'tag': '',
-        #         'meta_title': item.html_title,
-        #         'meta_description': item.html_h1,
-        #         'meta_keyword': item.html_h1
-        #     })
-        #
-        #     for key in item.images:
-        #         image = item.image[key]
-        #         self.sql.oc_product_image += self.temp.oc_product_image.substitute({
-        #             'product_id': item.sku,
-        #             'image': image,
-        #             'sort_order': 0
-        #         })
-        #
-        #     self.sql.oc_product_to_layout += self.temp.oc_product_to_layout.substitute({
-        #         'product_id': item.sku
-        #     })
-        #     self.sql.oc_product_to_store += self.temp.oc_product_to_store.substitute({
-        #         'product_id': item.sku
-        #     })
-        #
-        # for item in self.prodattr:
-        #     self.sql.oc_product_attribute += self.temp.oc_product_attribute.substitute({
-        #         'product_id': item.product_id,
-        #         'attribute_id': item.attr_id,
-        #         'text': item.desc
-        #     })
+        for item in self.product:
+            self.sql.oc_product += self.temp.oc_product.substitute({
+                'product_id': item.sku,
+                'model': item.model,
+                'sku': item.sku,
+                'location': '',
+                'quantity': item.quantity,
+                'stock_status_id': 7, # oc_stock_status 7, 'В наличии'
+                'image': item.image,
+                'manufacturer_id': item.manufacturer_id,
+                'shipping': item.shipping,
+                'price': item.price,
+                'points': 0,
+                'tax_class_id': 9, # oc_tax_class 9, 'Налоги', 'Облагаемые налогом'
+                'date_available': self.date,
+                'weight': '0.00000000' if item.weight == '' else item.weight,
+                'weight_class_id': 2,# oc_weight_class_description (2, 1, 'Грамм', 'г');
+                'length': '0.00000000' if item.length == '' else item.length,
+                'width': '0.00000000',
+                'height': '0.00000000',
+                'length_class_id': 2, # oc_length_class_description (2, 1, 'Миллиметр', 'мм');
+                'subtract': item.subtract,
+                'minimum': 1,
+                'sort_order': 1,
+                'status': 1,
+                'viewed': 0,
+                'date_added': self.date,
+                'date_modified': self.date
+            })
+
+            self.sql.oc_product_description += self.temp.oc_product_description.substitute({
+                'product_id': item.sku,
+                'name': item.name,
+                'description': item.description,
+                'tag': '',
+                'meta_title': item.html_title,
+                'meta_description': item.html_h1,
+                'meta_keyword': item.html_h1
+            })
+
+            for key in item.images:
+                image = item.image[key]
+                self.sql.oc_product_image += self.temp.oc_product_image.substitute({
+                    'product_id': item.sku,
+                    'image': image,
+                    'sort_order': 0
+                })
+
+            self.sql.oc_product_to_layout += self.temp.oc_product_to_layout.substitute({
+                'product_id': item.sku
+            })
+            self.sql.oc_product_to_store += self.temp.oc_product_to_store.substitute({
+                'product_id': item.sku
+            })
+
+        for item in self.prodattr:
+            self.sql.oc_product_attribute += self.temp.oc_product_attribute.substitute({
+                'product_id': item.product_id,
+                'attribute_id': item.attr_id,
+                'text': item.desc
+            })
 
         for item in self.prodoption:
             self.sql.oc_product_option += self.temp.oc_product_option.substitute({
